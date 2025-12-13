@@ -1,7 +1,6 @@
 [package]
-edition      = "2024"
+edition = "2021"
 name         = "s3-display-gyro-test-rs"
-rust-version = "1.88"
 version      = "0.1.0"
 
 [[bin]]

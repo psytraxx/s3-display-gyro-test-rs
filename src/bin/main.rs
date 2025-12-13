@@ -14,7 +14,6 @@ use esp_hal::delay::Delay;
 use esp_hal::i2c::master::{Config as I2cConfig, I2c};
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::rtc_cntl::Rtc;
 use log::info;
 use s3_display_gyro_test_rs::display::{Display, DisplayPeripherals, DisplayTrait};
 use s3_display_gyro_test_rs::sensor::Sensor;
@@ -26,21 +25,20 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) -> ! {
-    esp_println::logger::init_logger_from_env();
+     esp_println::logger::init_logger_from_env();
+    info!("Starting initialization...");
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
     esp_alloc::heap_allocator!(#[unsafe(link_section = ".dram2_uninit")] size: 73744);
 
-    // Disable watchdog timers
-    let mut rtc = Rtc::new(peripherals.LPWR);
-    rtc.rwdt.disable();
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-    esp_rtos::start(timg0.timer0);
 
-    info!("Embassy initialized!");
+    info!("Timer group created, starting esp_rtos...");
+
+    esp_rtos::start(timg0.timer0);
 
     let delay = Delay::new();
 
@@ -132,5 +130,5 @@ async fn main(spawner: Spawner) -> ! {
         }
 
         Timer::after(Duration::from_millis(100)).await;
-    }
+    } 
 }
