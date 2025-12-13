@@ -19,7 +19,6 @@ use s3_display_gyro_test_rs::display::{Display, DisplayPeripherals, DisplayTrait
 use s3_display_gyro_test_rs::sensor::Sensor;
 
 extern crate alloc;
-use alloc::format;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -48,6 +47,7 @@ async fn main(spawner: Spawner) -> ! {
         dc: peripherals.GPIO7,
         wr: peripherals.GPIO8,
         rd: peripherals.GPIO9,
+        power_en: peripherals.GPIO15,
         backlight: peripherals.GPIO38,
         d0: peripherals.GPIO39,
         d1: peripherals.GPIO40,
@@ -105,18 +105,8 @@ async fn main(spawner: Spawner) -> ! {
     loop {
         match sensor.read() {
             Ok(data) => {
-                let display_text = format!(
-                    "Accel (mg):\nX: {}\nY: {}\nZ: {}\n\nGyro (dps):\nX: {}\nY: {}\nZ: {}",
-                    data.accel_x,
-                    data.accel_y,
-                    data.accel_z,
-                    data.gyro_x,
-                    data.gyro_y,
-                    data.gyro_z
-                );
-
-                if let Err(e) = display.write_multiline(&display_text) {
-                    info!("Failed to write to display: {}", e);
+                if let Err(e) = display.draw_sensor_visualization(&data) {
+                    info!("Failed to draw visualization: {}", e);
                 }
 
                 info!(

@@ -28,6 +28,7 @@ where
 
         delay.delay_ms(10);
 
+
         bmi.set_accel_power_mode(AccelerometerPowerMode::Normal)
             .map_err(Error::Sensor)?;
         delay.delay_ms(10);
