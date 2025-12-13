@@ -1224,6 +1224,7 @@ dependencies = [
  "bmi160",
  "critical-section",
  "embassy-executor",
+ "embassy-sync 0.7.2",
  "embassy-time",
  "embedded-graphics",
  "embedded-hal 1.0.0",

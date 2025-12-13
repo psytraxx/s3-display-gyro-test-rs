@@ -7,20 +7,57 @@
 )]
 
 use embassy_executor::Spawner;
+use embassy_sync::channel::{Channel, Sender, Receiver};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::delay::Delay;
 use esp_hal::i2c::master::{Config as I2cConfig, I2c};
+use esp_hal::Blocking;
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
 use log::info;
 use s3_display_gyro_test_rs::display::{Display, DisplayPeripherals, DisplayTrait};
-use s3_display_gyro_test_rs::sensor::Sensor;
+use s3_display_gyro_test_rs::sensor::{Sensor, SensorData};
+use static_cell::StaticCell;
 
 extern crate alloc;
 
 esp_bootloader_esp_idf::esp_app_desc!();
+
+static SENSOR_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, SensorData, 1>> = StaticCell::new();
+
+#[embassy_executor::task]
+async fn sensor_task(mut sensor: Sensor<I2c<'static, Blocking>, Delay>, sender: Sender<'static, CriticalSectionRawMutex, SensorData, 1>) {
+    info!("Sensor task started");
+    loop {
+        match sensor.read() {
+            Ok(data) => {
+                info!(
+                    "Accel: [{}, {}, {}] Gyro: [{}, {}, {}]",
+                    data.accel_x, data.accel_y, data.accel_z, data.gyro_x, data.gyro_y, data.gyro_z
+                );
+                sender.send(data).await;
+            }
+            Err(e) => {
+                info!("Failed to read sensor: {}", e);
+            }
+        }
+        Timer::after(Duration::from_millis(100)).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn display_task(mut display: Display<'static, Delay>, receiver: Receiver<'static, CriticalSectionRawMutex, SensorData, 1>) {
+    info!("Display task started");
+    loop {
+        let data = receiver.receive().await;
+        if let Err(e) = display.draw_sensor_visualization(&data) {
+            info!("Failed to draw visualization: {}", e);
+        }
+    }
+}
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) -> ! {
@@ -59,7 +96,7 @@ async fn main(spawner: Spawner) -> ! {
         d7: peripherals.GPIO48,
     };
 
-    let mut display = match Display::new(display_peripherals, delay) {
+    let display = match Display::new(display_peripherals, delay) {
         Ok(d) => {
             info!("Display initialized successfully");
             d
@@ -84,41 +121,32 @@ async fn main(spawner: Spawner) -> ! {
 
     let sensor_delay = Delay::new();
 
-    let mut sensor = match Sensor::new(i2c, sensor_delay) {
+    let sensor = match Sensor::new(i2c, sensor_delay) {
         Ok(s) => {
             info!("Sensor initialized successfully");
             s
         }
         Err(e) => {
             info!("Sensor initialization failed: {}", e);
-            if let Err(e) = display.write_multiline("Sensor Init Failed!") {
-                info!("Failed to write to display: {}", e);
-            }
             loop {
                 Timer::after(Duration::from_secs(1)).await;
             }
         }
     };
 
-    let _ = spawner;
+    // Create channel
+    let channel = SENSOR_CHANNEL.init(Channel::new());
+    let sender = channel.sender();
+    let receiver = channel.receiver();
 
+    // Spawn tasks
+    spawner.spawn(sensor_task(sensor, sender)).unwrap();
+    spawner.spawn(display_task(display, receiver)).unwrap();
+
+    info!("Tasks spawned successfully");
+
+    // Main task just sleeps
     loop {
-        match sensor.read() {
-            Ok(data) => {
-                if let Err(e) = display.draw_sensor_visualization(&data) {
-                    info!("Failed to draw visualization: {}", e);
-                }
-
-                info!(
-                    "Accel: [{}, {}, {}] Gyro: [{}, {}, {}]",
-                    data.accel_x, data.accel_y, data.accel_z, data.gyro_x, data.gyro_y, data.gyro_z
-                );
-            }
-            Err(e) => {
-                info!("Failed to read sensor: {}", e);
-            }
-        }
-
-        Timer::after(Duration::from_millis(100)).await;
-    } 
+        Timer::after(Duration::from_secs(10)).await;
+    }
 }
