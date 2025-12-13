@@ -2,6 +2,8 @@
 
 Real-time graphical visualization of BMI160 IMU sensor data on LilyGo T-Display S3.
 
+https://github.com/user-attachments/assets/demo.mp4
+
 ## Overview
 
 This project displays accelerometer and gyroscope data from a BMI160 sensor on an ST7789 LCD display using the ESP32-S3 microcontroller. The visualization includes:
