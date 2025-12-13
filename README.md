@@ -2,7 +2,11 @@
 
 Real-time graphical visualization of BMI160 IMU sensor data on LilyGo T-Display S3.
 
-https://github.com/user-attachments/assets/demo.mp4
+
+
+https://github.com/user-attachments/assets/0386d598-76e4-4cf6-b21a-4e4570340e80
+
+
 
 ## Overview
 
