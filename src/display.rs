@@ -63,7 +63,6 @@ impl Default for DisplayState {
 
 pub struct Display<'a, D: DelayNs> {
     display: MipiDisplayWrapper<'a>,
-    power_en: Output<'a>,
     backlight: Output<'a>,
     delay: D,
     state: DisplayState,
@@ -134,7 +133,6 @@ impl<D: DelayNs> Display<'_, D> {
 
         Ok(Self {
             display,
-            power_en,
             backlight,
             delay,
             state: DisplayState::default(),
