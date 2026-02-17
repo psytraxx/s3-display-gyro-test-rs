@@ -12,8 +12,8 @@ use embedded_text::style::{HeightMode, TextBoxStyleBuilder};
 use embedded_text::TextBox;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::peripherals::{
-    GPIO15, GPIO38, GPIO39, GPIO40, GPIO41, GPIO42, GPIO45, GPIO46, GPIO47, GPIO48, GPIO5, GPIO6, GPIO7,
-    GPIO8, GPIO9,
+    GPIO15, GPIO38, GPIO39, GPIO40, GPIO41, GPIO42, GPIO45, GPIO46, GPIO47, GPIO48, GPIO5, GPIO6,
+    GPIO7, GPIO8, GPIO9,
 };
 use mipidsi::interface::{Generic8BitBus, ParallelError, ParallelInterface};
 use mipidsi::models::ST7789;
@@ -272,17 +272,11 @@ impl<D: DelayNs> Display<'_, D> {
         Ok(())
     }
 
-    fn update_gyro_bars(
-        &mut self,
-        gyro_x: i16,
-        gyro_y: i16,
-        gyro_z: i16,
-    ) -> Result<(), Error> {
+    fn update_gyro_bars(&mut self, gyro_x: i16, gyro_y: i16, gyro_z: i16) -> Result<(), Error> {
         let gyro_values = [gyro_x, gyro_y, gyro_z];
         let bar_positions = [BAR_X_X, BAR_Y_X, BAR_Z_X];
 
-        for (i, (&bar_x, &gyro_val)) in bar_positions.iter().zip(gyro_values.iter()).enumerate()
-        {
+        for (i, (&bar_x, &gyro_val)) in bar_positions.iter().zip(gyro_values.iter()).enumerate() {
             // Clear old bar fill
             if self.state.last_bar_fills[i] != 0 {
                 let clear_start = if self.state.last_bar_fills[i] > 0 {
@@ -290,7 +284,7 @@ impl<D: DelayNs> Display<'_, D> {
                 } else {
                     BAR_CENTER_Y
                 };
-                let clear_height = self.state.last_bar_fills[i].abs() as u32;
+                let clear_height = self.state.last_bar_fills[i].unsigned_abs();
 
                 Rectangle::new(
                     Point::new(bar_x, clear_start),
