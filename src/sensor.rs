@@ -1,6 +1,6 @@
 use bmi160::{AccelerometerPowerMode, Bmi160, GyroscopePowerMode, SensorSelector, SlaveAddr};
-use embedded_hal::i2c::I2c;
 use embedded_hal::delay::DelayNs;
+use embedded_hal::i2c::I2c;
 
 pub struct Sensor<I2C, D> {
     bmi: Bmi160<bmi160::interface::I2cInterface<I2C>>,
@@ -28,7 +28,6 @@ where
 
         delay.delay_ms(10);
 
-
         bmi.set_accel_power_mode(AccelerometerPowerMode::Normal)
             .map_err(Error::Sensor)?;
         delay.delay_ms(10);
@@ -41,7 +40,8 @@ where
     }
 
     pub fn read(&mut self) -> Result<SensorData, Error<I2C::Error>> {
-        let data = self.bmi
+        let data = self
+            .bmi
             .data(SensorSelector::new().accel().gyro())
             .map_err(Error::Sensor)?;
 

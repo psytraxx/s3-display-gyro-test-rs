@@ -29,9 +29,9 @@ pub const GYRO_SCALE_FACTOR: i32 = 16384;
 pub const TILT_DEAD_ZONE: i16 = 2000;
 
 // Color constants
-pub const COLOR_OUTER_CIRCLE: Rgb565 = Rgb565::new(12, 25, 12);  // Medium gray
-pub const COLOR_INNER_CIRCLE: Rgb565 = Rgb565::new(7, 15, 7);    // Dark gray
-pub const COLOR_BAR_BACKGROUND: Rgb565 = Rgb565::new(3, 7, 3);   // Very dark gray
+pub const COLOR_OUTER_CIRCLE: Rgb565 = Rgb565::new(12, 25, 12); // Medium gray
+pub const COLOR_INNER_CIRCLE: Rgb565 = Rgb565::new(7, 15, 7); // Dark gray
+pub const COLOR_BAR_BACKGROUND: Rgb565 = Rgb565::new(3, 7, 3); // Very dark gray
 
 pub struct BarFill {
     pub start_y: i32,

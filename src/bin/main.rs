@@ -7,16 +7,17 @@
 )]
 
 use embassy_executor::Spawner;
-use embassy_sync::channel::{Channel, Sender, Receiver};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::channel::{Channel, Receiver, Sender};
 use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
 use esp_hal::clock::CpuClock;
 use esp_hal::delay::Delay;
+use esp_hal::gpio::Pin;
 use esp_hal::i2c::master::{Config as I2cConfig, I2c};
-use esp_hal::Blocking;
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
+use esp_hal::Blocking;
 use log::info;
 use s3_display_gyro_test_rs::display::{Display, DisplayPeripherals, DisplayTrait};
 use s3_display_gyro_test_rs::sensor::{Sensor, SensorData};
@@ -26,10 +27,14 @@ extern crate alloc;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-static SENSOR_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, SensorData, 1>> = StaticCell::new();
+static SENSOR_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, SensorData, 1>> =
+    StaticCell::new();
 
 #[embassy_executor::task]
-async fn sensor_task(mut sensor: Sensor<I2c<'static, Blocking>, Delay>, sender: Sender<'static, CriticalSectionRawMutex, SensorData, 1>) {
+async fn sensor_task(
+    mut sensor: Sensor<I2c<'static, Blocking>, Delay>,
+    sender: Sender<'static, CriticalSectionRawMutex, SensorData, 1>,
+) {
     info!("Sensor task started");
     loop {
         match sensor.read() {
@@ -49,7 +54,10 @@ async fn sensor_task(mut sensor: Sensor<I2c<'static, Blocking>, Delay>, sender: 
 }
 
 #[embassy_executor::task]
-async fn display_task(mut display: Display<'static, Delay>, receiver: Receiver<'static, CriticalSectionRawMutex, SensorData, 1>) {
+async fn display_task(
+    mut display: Display<'static, Delay>,
+    receiver: Receiver<'static, CriticalSectionRawMutex, SensorData, 1>,
+) {
     info!("Display task started");
     loop {
         let data = receiver.receive().await;
@@ -61,14 +69,13 @@ async fn display_task(mut display: Display<'static, Delay>, receiver: Receiver<'
 
 #[esp_rtos::main]
 async fn main(spawner: Spawner) -> ! {
-     esp_println::logger::init_logger_from_env();
+    esp_println::logger::init_logger_from_env();
     info!("Starting initialization...");
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
     let peripherals = esp_hal::init(config);
 
     esp_alloc::heap_allocator!(#[unsafe(link_section = ".dram2_uninit")] size: 73744);
-
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
 
@@ -79,21 +86,21 @@ async fn main(spawner: Spawner) -> ! {
     let delay = Delay::new();
 
     let display_peripherals = DisplayPeripherals {
-        rst: peripherals.GPIO5,
-        cs: peripherals.GPIO6,
-        dc: peripherals.GPIO7,
-        wr: peripherals.GPIO8,
-        rd: peripherals.GPIO9,
-        power_en: peripherals.GPIO15,
-        backlight: peripherals.GPIO38,
-        d0: peripherals.GPIO39,
-        d1: peripherals.GPIO40,
-        d2: peripherals.GPIO41,
-        d3: peripherals.GPIO42,
-        d4: peripherals.GPIO45,
-        d5: peripherals.GPIO46,
-        d6: peripherals.GPIO47,
-        d7: peripherals.GPIO48,
+        rst: peripherals.GPIO5.degrade(),
+        cs: peripherals.GPIO6.degrade(),
+        dc: peripherals.GPIO7.degrade(),
+        wr: peripherals.GPIO8.degrade(),
+        rd: peripherals.GPIO9.degrade(),
+        power_en: peripherals.GPIO15.degrade(),
+        backlight: peripherals.GPIO38.degrade(),
+        d0: peripherals.GPIO39.degrade(),
+        d1: peripherals.GPIO40.degrade(),
+        d2: peripherals.GPIO41.degrade(),
+        d3: peripherals.GPIO42.degrade(),
+        d4: peripherals.GPIO45.degrade(),
+        d5: peripherals.GPIO46.degrade(),
+        d6: peripherals.GPIO47.degrade(),
+        d7: peripherals.GPIO48.degrade(),
     };
 
     let display = match Display::new(display_peripherals, delay) {
