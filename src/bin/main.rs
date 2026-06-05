@@ -81,7 +81,9 @@ async fn main(spawner: Spawner) -> ! {
 
     info!("Timer group created, starting esp_rtos...");
 
-    esp_rtos::start(timg0.timer0);
+    let sw_interrupt =
+        esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
+    esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
     let delay = Delay::new();
 
@@ -147,8 +149,8 @@ async fn main(spawner: Spawner) -> ! {
     let receiver = channel.receiver();
 
     // Spawn tasks
-    spawner.spawn(sensor_task(sensor, sender)).unwrap();
-    spawner.spawn(display_task(display, receiver)).unwrap();
+    spawner.spawn(sensor_task(sensor, sender).expect("Unable to start sensor task"));
+    spawner.spawn(display_task(display, receiver).expect("Unable to start display task"));
 
     info!("Tasks spawned successfully");
 
