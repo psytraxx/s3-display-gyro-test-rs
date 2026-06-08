@@ -38,6 +38,18 @@ This project displays accelerometer and gyroscope data from a BMI160 sensor on a
 - SDA: GPIO17
 - SCL: GPIO18
 
+#### BMI160 Breakout Wiring
+
+| Sensor Pin | Connect To | Notes |
+|------------|------------|-------|
+| 3V3 | 3.3V | Do not use VIN |
+| GND | GND | |
+| SCL | GPIO18 | I2C clock |
+| SDA | GPIO17 | I2C data |
+| CS | 3.3V | Pull high to enable I2C mode |
+| SAO | GND | Sets I2C address to 0x68 |
+| INT1, INT2, SCX, SDX, OCS | — | Leave unconnected |
+
 ## Features
 
 ### Tilt Indicator (Accelerometer)
