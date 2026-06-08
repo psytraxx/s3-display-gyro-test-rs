@@ -13,13 +13,13 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::{Channel, Receiver, Sender};
 use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
+use esp_hal::Blocking;
 use esp_hal::clock::CpuClock;
 use esp_hal::delay::Delay;
 use esp_hal::gpio::Pin;
 use esp_hal::i2c::master::{Config as I2cConfig, I2c};
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
-use esp_hal::Blocking;
 use log::info;
 use s3_display_gyro_test_rs::display::{Display, DisplayPeripherals, DisplayTrait};
 use s3_display_gyro_test_rs::imu::{Imu, ImuData};
@@ -45,8 +45,7 @@ async fn imu_task(
             Ok(data) => {
                 info!(
                     "Accel: [{}, {}, {}] Gyro: [{}, {}, {}]",
-                    data.accel_x, data.accel_y, data.accel_z,
-                    data.gyro_x, data.gyro_y, data.gyro_z
+                    data.accel_x, data.accel_y, data.accel_z, data.gyro_x, data.gyro_y, data.gyro_z
                 );
                 sender.send(data).await;
             }
@@ -109,10 +108,15 @@ async fn main(spawner: Spawner) -> ! {
     };
 
     let display = match Display::new(display_peripherals, Delay::new()) {
-        Ok(d) => { info!("Display initialized successfully"); d }
+        Ok(d) => {
+            info!("Display initialized successfully");
+            d
+        }
         Err(e) => {
             info!("Display initialization failed: {}", e);
-            loop { Timer::after(Duration::from_secs(1)).await; }
+            loop {
+                Timer::after(Duration::from_secs(1)).await;
+            }
         }
     };
 
@@ -129,10 +133,15 @@ async fn main(spawner: Spawner) -> ! {
     let i2c_bus = I2C_BUS.init(Mutex::new(RefCell::new(i2c)));
 
     let imu = match Imu::new(i2c_bus, &mut delay) {
-        Ok(s) => { info!("IMU initialized successfully"); s }
+        Ok(s) => {
+            info!("IMU initialized successfully");
+            s
+        }
         Err(e) => {
             info!("IMU initialization failed: {}", e);
-            loop { Timer::after(Duration::from_secs(1)).await; }
+            loop {
+                Timer::after(Duration::from_secs(1)).await;
+            }
         }
     };
 

@@ -1,15 +1,15 @@
+use embedded_graphics::Drawable;
 use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::geometry::{Dimensions, Point, Size};
-use embedded_graphics::mono_font::iso_8859_1::FONT_10X20 as FONT;
 use embedded_graphics::mono_font::MonoTextStyle;
+use embedded_graphics::mono_font::iso_8859_1::FONT_10X20 as FONT;
 use embedded_graphics::pixelcolor::{Rgb565, RgbColor};
 use embedded_graphics::prelude::Primitive;
 use embedded_graphics::primitives::{Circle, Line, PrimitiveStyle, Rectangle};
-use embedded_graphics::Drawable;
 use embedded_hal::delay::DelayNs;
+use embedded_text::TextBox;
 use embedded_text::alignment::HorizontalAlignment;
 use embedded_text::style::{HeightMode, TextBoxStyleBuilder};
-use embedded_text::TextBox;
 use esp_hal::gpio::{AnyPin, Level, Output, OutputConfig};
 use mipidsi::interface::{Generic8BitBus, ParallelError, ParallelInterface};
 use mipidsi::models::ST7789;
@@ -323,7 +323,6 @@ impl<D: DelayNs> Display<'_, D> {
 
         Ok(())
     }
-
 }
 
 impl<D: DelayNs> DisplayTrait for Display<'_, D> {
@@ -360,7 +359,6 @@ impl<D: DelayNs> DisplayTrait for Display<'_, D> {
         self.update_gyro_bars(data.gyro_x, data.gyro_y, data.gyro_z)?;
         Ok(())
     }
-
 }
 
 #[derive(Debug)]

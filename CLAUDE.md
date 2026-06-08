@@ -20,7 +20,7 @@ This is a `no_std` embedded Rust application for the **LilyGo T-Display S3** (ES
 cargo build --release
 ```
 
-Note: The project uses Rust edition 2021 and requires the ESP Rust toolchain (`channel = "esp"`).
+Note: The project uses Rust edition 2024 and requires the ESP Rust toolchain (`channel = "esp"`).
 
 ### Toolchain
 This project requires the ESP-specific Rust toolchain. The `rust-toolchain.toml` specifies `channel = "esp"`.
