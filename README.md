@@ -10,7 +10,7 @@ https://github.com/user-attachments/assets/0386d598-76e4-4cf6-b21a-4e4570340e80
 
 ## Overview
 
-This project displays accelerometer and gyroscope data from a BMI160 sensor on an ST7789 LCD display using the ESP32-S3 microcontroller. The visualization includes:
+This project displays accelerometer and gyroscope data from a BMI160 IMU on an ST7789 LCD display using the ESP32-S3 microcontroller. The visualization includes:
 
 - **Left Panel**: 2D tilt indicator (bubble level) showing device orientation
 - **Right Panel**: Triple bar gauges showing gyroscope rotation on X, Y, Z axes
@@ -19,7 +19,7 @@ This project displays accelerometer and gyroscope data from a BMI160 sensor on a
 
 - **Board**: LilyGo T-Display S3 (ESP32-S3)
 - **Display**: ST7789 LCD (320×170 pixels, 8-bit parallel interface)
-- **Sensor**: BMI160 6-axis IMU (accelerometer + gyroscope)
+- **Sensor**: BMI160 6-axis IMU (accelerometer + gyroscope) — I2C address 0x68
 - **Interface**: I2C (GPIO17 SDA, GPIO18 SCL, 400 kHz)
 
 ### Pin Configuration
@@ -69,22 +69,25 @@ This project displays accelerometer and gyroscope data from a BMI160 sensor on a
 - Real-time response to device rotation
 
 ### Architecture
-- **Embassy-based async tasks**: Separate tasks for sensor reading and display rendering
-- **Channel communication**: Sensor task sends data to display task via embassy-sync channel
-- **Update rate**: 10 Hz (100ms sensor polling)
+- **Two Embassy async tasks**: IMU task and display task
+- **Channel communication**: IMU task sends `ImuData` to display task via `embassy-sync` channel
+- **Update rate**: 10 Hz (100ms IMU polling)
 - **Rendering**: Partial updates for smooth animation (~10-20ms per frame)
 
 ## Dependencies
 
 ```toml
-esp-hal = "1.0.0"
-esp-rtos = "0.2.0"
-embassy-executor = "0.9.1"
-embassy-time = "0.5.0"
-embassy-sync = "0.7.0"
-mipidsi = "0.9.0"
-embedded-graphics = "0.8.1"
+esp-hal = "1.1.1"
+esp-rtos = "0.3.0"
+embassy-executor = "0.10.0"
+embassy-time = "0.5.1"
+embassy-sync = "0.8.0"
+mipidsi = "0.10.0"
+embedded-graphics = "0.8.2"
+embedded-hal = "1.0.0"
+embedded-hal-bus = "0.3.0"
 bmi160 = "1.1.0"
+anyhow = "1.0.102"
 ```
 
 ## Building
@@ -124,9 +127,9 @@ Serial console will show:
 Starting initialization...
 Timer group created, starting esp_rtos...
 Display initialized successfully
-Sensor initialized successfully
+IMU initialized successfully
 Tasks spawned successfully
-Sensor task started
+IMU task started
 Display task started
 Accel: [123, -456, 16384] Gyro: [45, -67, 12]
 ...
@@ -144,7 +147,7 @@ src/
 │   └── main.rs           # Entry point, task spawning, initialization
 ├── config.rs             # Display dimensions
 ├── display.rs            # Display driver, rendering logic
-├── sensor.rs             # BMI160 sensor interface
+├── imu.rs                # BMI160 sensor interface
 ├── visualization.rs      # Layout constants, coordinate calculations
 └── lib.rs                # Module declarations
 ```
@@ -153,8 +156,8 @@ src/
 
 ```
 ┌──────────────┐         Channel          ┌──────────────┐
-│ Sensor Task  │ ──────────────────────> │ Display Task │
-│              │    (SensorData)          │              │
+│  IMU Task    │ ──────────────────────> │ Display Task │
+│              │    (ImuData)             │              │
 │ - Reads BMI  │                          │ - Draws viz  │
 │ - 100ms loop │                          │ - On demand  │
 └──────────────┘                          └──────────────┘
@@ -190,7 +193,7 @@ MIT
 ### Sensor not detected
 - Verify I2C connections (GPIO17 SDA, GPIO18 SCL)
 - Check I2C address (default: 0x68)
-- Ensure sensor is powered
+- Ensure CS pin is pulled HIGH (enables I2C mode)
 
 ### Build errors
 - Source ESP environment: `. ~/export-esp.sh`

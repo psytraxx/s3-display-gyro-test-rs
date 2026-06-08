@@ -2,5 +2,5 @@
 
 pub mod config;
 pub mod display;
-pub mod sensor;
+pub mod imu;
 pub mod visualization;

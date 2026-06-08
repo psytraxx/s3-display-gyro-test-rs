@@ -6,6 +6,8 @@
     holding buffers for the duration of a data transfer."
 )]
 
+use core::cell::RefCell;
+use critical_section::Mutex;
 use embassy_executor::Spawner;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::channel::{Channel, Receiver, Sender};
@@ -20,34 +22,35 @@ use esp_hal::timer::timg::TimerGroup;
 use esp_hal::Blocking;
 use log::info;
 use s3_display_gyro_test_rs::display::{Display, DisplayPeripherals, DisplayTrait};
-use s3_display_gyro_test_rs::sensor::{Sensor, SensorData};
+use s3_display_gyro_test_rs::imu::{Imu, ImuData};
 use static_cell::StaticCell;
 
 extern crate alloc;
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
-static SENSOR_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, SensorData, 1>> =
-    StaticCell::new();
+type I2cBus = I2c<'static, Blocking>;
+
+static IMU_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, ImuData, 1>> = StaticCell::new();
+static I2C_BUS: StaticCell<Mutex<RefCell<I2cBus>>> = StaticCell::new();
 
 #[embassy_executor::task]
-async fn sensor_task(
-    mut sensor: Sensor<I2c<'static, Blocking>, Delay>,
-    sender: Sender<'static, CriticalSectionRawMutex, SensorData, 1>,
+async fn imu_task(
+    mut imu: Imu<I2cBus>,
+    sender: Sender<'static, CriticalSectionRawMutex, ImuData, 1>,
 ) {
-    info!("Sensor task started");
+    info!("IMU task started");
     loop {
-        match sensor.read() {
+        match imu.read() {
             Ok(data) => {
                 info!(
                     "Accel: [{}, {}, {}] Gyro: [{}, {}, {}]",
-                    data.accel_x, data.accel_y, data.accel_z, data.gyro_x, data.gyro_y, data.gyro_z
+                    data.accel_x, data.accel_y, data.accel_z,
+                    data.gyro_x, data.gyro_y, data.gyro_z
                 );
                 sender.send(data).await;
             }
-            Err(e) => {
-                info!("Failed to read sensor: {}", e);
-            }
+            Err(e) => info!("IMU read error: {}", e),
         }
         Timer::after(Duration::from_millis(100)).await;
     }
@@ -56,13 +59,13 @@ async fn sensor_task(
 #[embassy_executor::task]
 async fn display_task(
     mut display: Display<'static, Delay>,
-    receiver: Receiver<'static, CriticalSectionRawMutex, SensorData, 1>,
+    receiver: Receiver<'static, CriticalSectionRawMutex, ImuData, 1>,
 ) {
     info!("Display task started");
     loop {
         let data = receiver.receive().await;
         if let Err(e) = display.draw_sensor_visualization(&data) {
-            info!("Failed to draw visualization: {}", e);
+            info!("Display error: {}", e);
         }
     }
 }
@@ -85,7 +88,7 @@ async fn main(spawner: Spawner) -> ! {
         esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
 
-    let delay = Delay::new();
+    let mut delay = Delay::new();
 
     let display_peripherals = DisplayPeripherals {
         rst: peripherals.GPIO5.degrade(),
@@ -105,16 +108,11 @@ async fn main(spawner: Spawner) -> ! {
         d7: peripherals.GPIO48.degrade(),
     };
 
-    let display = match Display::new(display_peripherals, delay) {
-        Ok(d) => {
-            info!("Display initialized successfully");
-            d
-        }
+    let display = match Display::new(display_peripherals, Delay::new()) {
+        Ok(d) => { info!("Display initialized successfully"); d }
         Err(e) => {
             info!("Display initialization failed: {}", e);
-            loop {
-                Timer::after(Duration::from_secs(1)).await;
-            }
+            loop { Timer::after(Duration::from_secs(1)).await; }
         }
     };
 
@@ -128,33 +126,23 @@ async fn main(spawner: Spawner) -> ! {
     .with_sda(peripherals.GPIO17)
     .with_scl(peripherals.GPIO18);
 
-    let sensor_delay = Delay::new();
+    let i2c_bus = I2C_BUS.init(Mutex::new(RefCell::new(i2c)));
 
-    let sensor = match Sensor::new(i2c, sensor_delay) {
-        Ok(s) => {
-            info!("Sensor initialized successfully");
-            s
-        }
+    let imu = match Imu::new(i2c_bus, &mut delay) {
+        Ok(s) => { info!("IMU initialized successfully"); s }
         Err(e) => {
-            info!("Sensor initialization failed: {}", e);
-            loop {
-                Timer::after(Duration::from_secs(1)).await;
-            }
+            info!("IMU initialization failed: {}", e);
+            loop { Timer::after(Duration::from_secs(1)).await; }
         }
     };
 
-    // Create channel
-    let channel = SENSOR_CHANNEL.init(Channel::new());
-    let sender = channel.sender();
-    let receiver = channel.receiver();
+    let imu_channel = IMU_CHANNEL.init(Channel::new());
 
-    // Spawn tasks
-    spawner.spawn(sensor_task(sensor, sender).expect("Unable to start sensor task"));
-    spawner.spawn(display_task(display, receiver).expect("Unable to start display task"));
+    spawner.spawn(imu_task(imu, imu_channel.sender()).expect("spawn imu_task"));
+    spawner.spawn(display_task(display, imu_channel.receiver()).expect("spawn display_task"));
 
     info!("Tasks spawned successfully");
 
-    // Main task just sleeps
     loop {
         Timer::after(Duration::from_secs(10)).await;
     }

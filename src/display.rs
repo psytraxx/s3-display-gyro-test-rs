@@ -17,7 +17,7 @@ use mipidsi::options::{ColorInversion, Orientation, Rotation};
 use mipidsi::{Builder, Display as MipiDisplay};
 
 use crate::config::{DISPLAY_HEIGHT, DISPLAY_WIDTH};
-use crate::sensor::SensorData;
+use crate::imu::ImuData;
 use crate::visualization::*;
 
 const TEXT_STYLE: MonoTextStyle<Rgb565> = MonoTextStyle::new(&FONT, Rgb565::WHITE);
@@ -67,7 +67,7 @@ pub struct Display<'a, D: DelayNs> {
 pub trait DisplayTrait {
     fn write_multiline(&mut self, text: &str) -> Result<(), Error>;
     fn enable_powersave(&mut self) -> Result<(), Error>;
-    fn draw_sensor_visualization(&mut self, data: &SensorData) -> Result<(), Error>;
+    fn draw_sensor_visualization(&mut self, data: &ImuData) -> Result<(), Error>;
 }
 
 pub struct DisplayPeripherals {
@@ -323,6 +323,7 @@ impl<D: DelayNs> Display<'_, D> {
 
         Ok(())
     }
+
 }
 
 impl<D: DelayNs> DisplayTrait for Display<'_, D> {
@@ -349,20 +350,17 @@ impl<D: DelayNs> DisplayTrait for Display<'_, D> {
         Ok(())
     }
 
-    fn draw_sensor_visualization(&mut self, data: &SensorData) -> Result<(), Error> {
-        // Initialize static elements on first call
+    fn draw_sensor_visualization(&mut self, data: &ImuData) -> Result<(), Error> {
         if !self.state.initialized {
             self.disable_powersave()?;
             self.draw_static_elements()?;
             self.state.initialized = true;
         }
-
-        // Update dynamic elements
         self.update_tilt_bubble(data.accel_x, data.accel_y)?;
         self.update_gyro_bars(data.gyro_x, data.gyro_y, data.gyro_z)?;
-
         Ok(())
     }
+
 }
 
 #[derive(Debug)]
