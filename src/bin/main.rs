@@ -83,9 +83,7 @@ async fn main(spawner: Spawner) -> ! {
 
     info!("Timer group created, starting esp_rtos...");
 
-    let sw_interrupt =
-        esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
-    esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
+    esp_rtos::start(timg0.timer0, peripherals.FROM_CPU_INTR0);
 
     let mut delay = Delay::new();
 
