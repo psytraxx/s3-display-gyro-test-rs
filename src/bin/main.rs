@@ -20,9 +20,10 @@ use esp_hal::gpio::Pin;
 use esp_hal::i2c::master::{Config as I2cConfig, I2c};
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
-use log::info;
+use log::{debug, info, warn};
 use s3_display_gyro_test_rs::display::{Display, DisplayPeripherals, DisplayTrait};
 use s3_display_gyro_test_rs::imu::{Imu, ImuData};
+use s3_display_gyro_test_rs::moisture::MoistureSensor;
 use static_cell::StaticCell;
 
 extern crate alloc;
@@ -30,6 +31,9 @@ extern crate alloc;
 esp_bootloader_esp_idf::esp_app_desc!();
 
 type I2cBus = I2c<'static, Blocking>;
+
+const BMI160_ADDR: u8 = 0x68;
+const SEESAW_MOISTURE_ADDR: u8 = 0x36;
 
 static IMU_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, ImuData, 1>> = StaticCell::new();
 static I2C_BUS: StaticCell<Mutex<RefCell<I2cBus>>> = StaticCell::new();
@@ -43,7 +47,7 @@ async fn imu_task(
     loop {
         match imu.read() {
             Ok(data) => {
-                info!(
+                debug!(
                     "Accel: [{}, {}, {}] Gyro: [{}, {}, {}]",
                     data.accel_x, data.accel_y, data.accel_z, data.gyro_x, data.gyro_y, data.gyro_z
                 );
@@ -52,6 +56,24 @@ async fn imu_task(
             Err(e) => info!("IMU read error: {}", e),
         }
         Timer::after(Duration::from_millis(100)).await;
+    }
+}
+
+#[embassy_executor::task]
+async fn moisture_task(mut sensor: MoistureSensor<I2cBus>) {
+    info!("Moisture task started");
+    let mut delay = Delay::new();
+    loop {
+        match sensor.read(&mut delay) {
+            Ok(data) => {
+                info!(
+                    "Moisture capacitance: {} Temperature: {:.2}C",
+                    data.capacitance, data.temperature_c
+                );
+            }
+            Err(e) => info!("Moisture read error: {}", e),
+        }
+        Timer::after(Duration::from_millis(1000)).await;
     }
 }
 
@@ -129,31 +151,43 @@ async fn main(spawner: Spawner) -> ! {
     .with_scl(peripherals.GPIO18);
 
     info!("Scanning I2C bus...");
+    let mut imu_present = false;
+    let mut moisture_present = false;
     for addr in 0x08..=0x77u8 {
         if i2c.write(addr, &[]).is_ok() {
             info!("I2C device found at address 0x{:02X}", addr);
+            match addr {
+                BMI160_ADDR => imu_present = true,
+                SEESAW_MOISTURE_ADDR => moisture_present = true,
+                _ => {}
+            }
         }
     }
     info!("I2C scan complete");
 
     let i2c_bus = I2C_BUS.init(Mutex::new(RefCell::new(i2c)));
 
-    let imu = match Imu::new(i2c_bus, &mut delay) {
-        Ok(s) => {
-            info!("IMU initialized successfully");
-            s
-        }
-        Err(e) => {
-            info!("IMU initialization failed: {}", e);
-            loop {
-                Timer::after(Duration::from_secs(1)).await;
-            }
-        }
-    };
-
     let imu_channel = IMU_CHANNEL.init(Channel::new());
 
-    spawner.spawn(imu_task(imu, imu_channel.sender()).expect("spawn imu_task"));
+    if imu_present {
+        match Imu::new(i2c_bus, &mut delay) {
+            Ok(imu) => {
+                info!("IMU initialized successfully");
+                spawner.spawn(imu_task(imu, imu_channel.sender()).expect("spawn imu_task"));
+            }
+            Err(e) => info!("IMU initialization failed: {}", e),
+        }
+    } else {
+        warn!("IMU not found on I2C bus, skipping");
+    }
+
+    if moisture_present {
+        let moisture_sensor = MoistureSensor::new(i2c_bus);
+        spawner.spawn(moisture_task(moisture_sensor).expect("spawn moisture_task"));
+    } else {
+        info!("Moisture sensor not found on I2C bus, skipping");
+    }
+
     spawner.spawn(display_task(display, imu_channel.receiver()).expect("spawn display_task"));
 
     info!("Tasks spawned successfully");

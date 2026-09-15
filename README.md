@@ -1,6 +1,6 @@
 # S3 Display Gyro Test
 
-Real-time graphical visualization of BMI160 IMU sensor data on LilyGo T-Display S3.
+Real-time graphical visualization of BMI160 IMU sensor data on LilyGo T-Display S3, with optional Adafruit seesaw capacitive moisture sensor support.
 
 
 
@@ -20,7 +20,12 @@ This project displays accelerometer and gyroscope data from a BMI160 IMU on an S
 - **Board**: LilyGo T-Display S3 (ESP32-S3)
 - **Display**: ST7789 LCD (320×170 pixels, 8-bit parallel interface)
 - **Sensor**: BMI160 6-axis IMU (accelerometer + gyroscope) — I2C address 0x68
+- **Optional sensor**: Adafruit seesaw capacitive moisture sensor — I2C address 0x36
 - **Interface**: I2C (GPIO17 SDA, GPIO18 SCL, 400 kHz)
+
+Both sensors share the same I2C bus. At boot, the firmware scans addresses
+0x08–0x77 and only initializes/spawns the task for each sensor if it responds
+on the bus — either one can be physically absent without affecting the other.
 
 ### Pin Configuration
 
@@ -50,6 +55,83 @@ This project displays accelerometer and gyroscope data from a BMI160 IMU on an S
 | SAO | GND | Sets I2C address to 0x68 |
 | INT1, INT2, SCX, SDX, OCS | — | Leave unconnected |
 
+#### Seesaw Moisture Sensor Wiring (Optional)
+
+| Sensor Pin | Connect To | Notes |
+|------------|------------|-------|
+| 3V | 3.3V | |
+| GND | GND | |
+| SCL | GPIO18 | I2C clock (shared bus) |
+| SDA | GPIO17 | I2C data (shared bus) |
+
+### Wiring Diagram
+
+```mermaid
+graph LR
+    subgraph MCU["LilyGo T-Display S3 (ESP32-S3)"]
+        GPIO5["GPIO5"]
+        GPIO6["GPIO6"]
+        GPIO7["GPIO7"]
+        GPIO8["GPIO8"]
+        GPIO9["GPIO9"]
+        GPIO15["GPIO15"]
+        GPIO38["GPIO38"]
+        GPIO17["GPIO17 (SDA)"]
+        GPIO18["GPIO18 (SCL)"]
+        D0_7["GPIO39-42, 45-48 (D0-D7)"]
+        V33["3.3V"]
+        GND["GND"]
+    end
+
+    subgraph LCD["ST7789 LCD (320x170)"]
+        LCD_RST["RST"]
+        LCD_CS["CS"]
+        LCD_DC["DC"]
+        LCD_WR["WR"]
+        LCD_RD["RD"]
+        LCD_PWR["Power Enable"]
+        LCD_BL["Backlight"]
+        LCD_D["D0-D7"]
+    end
+
+    subgraph BMI["BMI160 IMU (0x68)"]
+        BMI_3V3["3V3"]
+        BMI_GND["GND"]
+        BMI_SCL["SCL"]
+        BMI_SDA["SDA"]
+        BMI_CS["CS"]
+        BMI_SAO["SAO"]
+    end
+
+    subgraph MOIST["Seesaw Moisture Sensor (0x36, optional)"]
+        M_3V["3V"]
+        M_GND["GND"]
+        M_SCL["SCL"]
+        M_SDA["SDA"]
+    end
+
+    GPIO5 --> LCD_RST
+    GPIO6 --> LCD_CS
+    GPIO7 --> LCD_DC
+    GPIO8 --> LCD_WR
+    GPIO9 --> LCD_RD
+    GPIO15 --> LCD_PWR
+    GPIO38 --> LCD_BL
+    D0_7 --> LCD_D
+
+    V33 --> BMI_3V3
+    GND --> BMI_GND
+    GPIO18 --> BMI_SCL
+    GPIO17 --> BMI_SDA
+    V33 --> BMI_CS
+    GND --> BMI_SAO
+
+    V33 --> M_3V
+    GND --> M_GND
+    GPIO18 --> M_SCL
+    GPIO17 --> M_SDA
+```
+
 ## Features
 
 ### Tilt Indicator (Accelerometer)
@@ -68,10 +150,17 @@ This project displays accelerometer and gyroscope data from a BMI160 IMU on an S
 - **Red fill**: Negative rotation (downward from center)
 - Real-time response to device rotation
 
+### Moisture Sensor (Optional)
+- Polled at 1 Hz over the same I2C bus (seesaw register protocol)
+- Logs capacitance (raw touch reading) and temperature (°C) to the console
+- Only started if detected during the boot-time I2C scan
+
 ### Architecture
-- **Two Embassy async tasks**: IMU task and display task
+- **I2C scan at boot**: probes addresses 0x08–0x77 before any device init; only
+  devices that ACK are initialized and get their task spawned
+- **Up to three Embassy async tasks**: IMU task, moisture task, and display task
 - **Channel communication**: IMU task sends `ImuData` to display task via `embassy-sync` channel
-- **Update rate**: 10 Hz (100ms IMU polling)
+- **Update rate**: 10 Hz IMU polling (100ms), 1 Hz moisture polling (1000ms)
 - **Rendering**: Partial updates for smooth animation (~10-20ms per frame)
 
 ## Dependencies
@@ -127,13 +216,21 @@ Serial console will show:
 Starting initialization...
 Timer group created, starting esp_rtos...
 Display initialized successfully
+Scanning I2C bus...
+I2C device found at address 0x36
+I2C device found at address 0x68
+I2C scan complete
 IMU initialized successfully
 Tasks spawned successfully
 IMU task started
+Moisture task started
 Display task started
-Accel: [123, -456, 16384] Gyro: [45, -67, 12]
+Moisture capacitance: 456 Temperature: 24.31C
 ...
 ```
+
+If a sensor is not detected on the bus, its initialization and task are
+skipped and a log line notes it, e.g. `Moisture sensor not found on I2C bus, skipping`.
 
 Display will show:
 - Left: Circular tilt indicator with moving bubble
@@ -148,6 +245,7 @@ src/
 ├── config.rs             # Display dimensions
 ├── display.rs            # Display driver, rendering logic
 ├── imu.rs                # BMI160 sensor interface
+├── moisture.rs           # Seesaw moisture sensor interface
 ├── visualization.rs      # Layout constants, coordinate calculations
 └── lib.rs                # Module declarations
 ```
@@ -161,7 +259,16 @@ src/
 │ - Reads BMI  │                          │ - Draws viz  │
 │ - 100ms loop │                          │ - On demand  │
 └──────────────┘                          └──────────────┘
+
+┌──────────────────┐
+│  Moisture Task    │   (independent, console log only)
+│  - Reads seesaw   │
+│  - 1000ms loop     │
+└──────────────────┘
 ```
+
+Both sensor tasks are only spawned if their I2C address responded during the
+boot-time scan.
 
 ## Visualization Details
 
@@ -192,8 +299,9 @@ MIT
 
 ### Sensor not detected
 - Verify I2C connections (GPIO17 SDA, GPIO18 SCL)
-- Check I2C address (default: 0x68)
-- Ensure CS pin is pulled HIGH (enables I2C mode)
+- Check the boot-time I2C scan log for the expected address (BMI160: 0x68, seesaw moisture: 0x36)
+- For BMI160: ensure CS pin is pulled HIGH (enables I2C mode)
+- If a sensor is absent, its task is simply skipped — this is expected and not an error
 
 ### Build errors
 - Source ESP environment: `. ~/export-esp.sh`
