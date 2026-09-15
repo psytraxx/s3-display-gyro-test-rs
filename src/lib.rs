@@ -3,4 +3,5 @@
 pub mod config;
 pub mod display;
 pub mod imu;
+pub mod moisture;
 pub mod visualization;
