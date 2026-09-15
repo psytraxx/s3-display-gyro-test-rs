@@ -120,13 +120,21 @@ async fn main(spawner: Spawner) -> ! {
 
     let _io = esp_hal::gpio::Io::new(peripherals.IO_MUX);
 
-    let i2c = I2c::new(
+    let mut i2c = I2c::new(
         peripherals.I2C0,
         I2cConfig::default().with_frequency(Rate::from_khz(400)),
     )
     .unwrap()
     .with_sda(peripherals.GPIO17)
     .with_scl(peripherals.GPIO18);
+
+    info!("Scanning I2C bus...");
+    for addr in 0x08..=0x77u8 {
+        if i2c.write(addr, &[]).is_ok() {
+            info!("I2C device found at address 0x{:02X}", addr);
+        }
+    }
+    info!("I2C scan complete");
 
     let i2c_bus = I2C_BUS.init(Mutex::new(RefCell::new(i2c)));
 
