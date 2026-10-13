@@ -94,7 +94,7 @@ impl<D: DelayNs> Display<'_, D> {
         let mut power_en = Output::new(p.power_en, Level::High, OutputConfig::default());
         power_en.set_high();
 
-        let backlight = Output::new(p.backlight, Level::Low, OutputConfig::default());
+        let backlight = Output::new(p.backlight, Level::High, OutputConfig::default());
 
         let dc = Output::new(p.dc, Level::Low, OutputConfig::default());
         let mut cs = Output::new(p.cs, Level::Low, OutputConfig::default());
@@ -127,12 +127,16 @@ impl<D: DelayNs> Display<'_, D> {
             .init(&mut delay)
             .map_err(|_| Error::InitError)?;
 
-        Ok(Self {
+        let mut s = Self {
             display,
             backlight,
             delay,
             state: DisplayState::default(),
-        })
+        };
+        s.disable_powersave()?;
+        s.draw_static_elements()?;
+        s.state.initialized = true;
+        Ok(s)
     }
 
     fn disable_powersave(&mut self) -> Result<(), Error> {

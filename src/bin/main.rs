@@ -20,7 +20,7 @@ use esp_hal::gpio::Pin;
 use esp_hal::i2c::master::{Config as I2cConfig, I2c};
 use esp_hal::time::Rate;
 use esp_hal::timer::timg::TimerGroup;
-use log::{debug, info, warn};
+use log::{info, warn};
 use s3_display_gyro_test_rs::display::{Display, DisplayPeripherals, DisplayTrait};
 use s3_display_gyro_test_rs::imu::{Imu, ImuData};
 use s3_display_gyro_test_rs::moisture::MoistureSensor;
@@ -47,7 +47,7 @@ async fn imu_task(
     loop {
         match imu.read() {
             Ok(data) => {
-                debug!(
+                info!(
                     "Accel: [{}, {}, {}] Gyro: [{}, {}, {}]",
                     data.accel_x, data.accel_y, data.accel_z, data.gyro_x, data.gyro_y, data.gyro_z
                 );
