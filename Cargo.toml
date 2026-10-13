@@ -8,7 +8,7 @@ name = "s3-display-gyro-test-rs"
 path = "./src/bin/main.rs"
 
 [dependencies]
-esp-hal = { version = "1.2.1", features = ["esp32s3", "log-04", "unstable"] }
+esp-hal = { version = "1.2.2", features = ["esp32s3", "log-04", "unstable"] }
 
 esp-rtos = { version = "0.4.0", features = [
   "embassy",

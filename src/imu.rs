@@ -34,14 +34,37 @@ where
         delay.delay_ms(10);
         bmi.set_accel_power_mode(AccelerometerPowerMode::Normal)
             .map_err(|e| anyhow!("BMI160: set accel power mode: {:?}", e))?;
-        delay.delay_ms(10);
+        // BMI160 accelerometer needs up to 5ms to transition Suspend -> Normal;
+        // the gyroscope needs up to 80ms, so wait for the slower one before
+        // issuing the next command.
+        delay.delay_ms(80);
         bmi.set_gyro_power_mode(GyroscopePowerMode::Normal)
             .map_err(|e| anyhow!("BMI160: set gyro power mode: {:?}", e))?;
-        delay.delay_ms(10);
+        delay.delay_ms(80);
+
+        let power_mode = bmi
+            .power_mode()
+            .map_err(|e| anyhow!("BMI160: read power mode: {:?}", e))?;
+        log::info!(
+            "BMI160 power mode: accel={:?} gyro={:?}",
+            power_mode.accel,
+            power_mode.gyro
+        );
+
         Ok(Self { bmi })
     }
 
     pub fn read(&mut self) -> Result<ImuData> {
+        let status = self
+            .bmi
+            .status()
+            .map_err(|e| anyhow!("BMI160: read status: {:?}", e))?;
+        log::info!(
+            "BMI160 status: accel_data_ready={} gyro_data_ready={}",
+            status.accel_data_ready,
+            status.gyro_data_ready
+        );
+
         let data = self
             .bmi
             .data(SensorSelector::new().accel().gyro())
